@@ -1,0 +1,216 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user's profile within the VarshanAI application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user profile."
+        },
+        "email": {
+          "type": "string",
+          "description": "User's email address.",
+          "format": "email"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User's display name."
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "URL of the user's profile photo.",
+          "format": "uri"
+        },
+        "settingsId": {
+          "type": "string",
+          "description": "Reference to UserSettings. (Relationship: UserProfile 1:1 UserSettings)"
+        }
+      },
+      "required": [
+        "id",
+        "email"
+      ]
+    },
+    "UserSettings": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserSettings",
+      "type": "object",
+      "description": "Represents the settings for a user's profile.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user settings."
+        },
+        "darkModeEnabled": {
+          "type": "boolean",
+          "description": "Indicates whether dark mode is enabled for the user."
+        },
+        "notificationEnabled": {
+          "type": "boolean",
+          "description": "Indicates whether notification is enabled for the user."
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "Chat": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Chat",
+      "type": "object",
+      "description": "Represents a single chat session between the user and the AI.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the chat session."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to UserProfile. (Relationship: UserProfile 1:N Chat)"
+        },
+        "startTime": {
+          "type": "string",
+          "description": "The time the chat was started.",
+          "format": "date-time"
+        },
+        "endTime": {
+          "type": "string",
+          "description": "The time the chat ended.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "startTime"
+      ]
+    },
+    "Message": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Message",
+      "type": "object",
+      "description": "Represents a single message within a chat session.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the message."
+        },
+        "chatId": {
+          "type": "string",
+          "description": "Reference to Chat. (Relationship: Chat 1:N Message)"
+        },
+        "sender": {
+          "type": "string",
+          "description": "Indicates who sent the message, either 'user' or 'ai'."
+        },
+        "content": {
+          "type": "string",
+          "description": "The content of the message."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The time the message was sent.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "chatId",
+        "sender",
+        "content",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores user profile data. Only the authenticated user can access their own profile. Path-based ownership is enforced.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/settings",
+        "definition": {
+          "entityName": "UserSettings",
+          "schema": {
+            "$ref": "#/backend/entities/UserSettings"
+          },
+          "description": "Stores user settings. Only the authenticated user can access their own settings. Path-based ownership is enforced.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/chats/{chatId}",
+        "definition": {
+          "entityName": "Chat",
+          "schema": {
+            "$ref": "#/backend/entities/Chat"
+          },
+          "description": "Stores chat sessions for a user. Path-based ownership ensures only the user can access their chats.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "chatId",
+              "description": "The unique identifier of the chat session."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/chats/{chatId}/messages/{messageId}",
+        "definition": {
+          "entityName": "Message",
+          "schema": {
+            "$ref": "#/backend/entities/Message"
+          },
+          "description": "Stores messages within a specific chat session. Path-based ownership ensures only the user can access their messages.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user."
+            },
+            {
+              "name": "chatId",
+              "description": "The unique identifier of the chat session."
+            },
+            {
+              "name": "messageId",
+              "description": "The unique identifier of the message."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to support the VarshanAI application, prioritizing security, scalability, and debuggability as per the core design principles.  Authorization Independence is achieved through path-based ownership for user-specific data and avoiding `get()` calls in security rules. Structural Segregation is used by placing user profiles, settings, chats, and messages into separate collections based on access control requirements.\n\nSpecifically:\n\n*   `/users/{userId}`:  Stores user profile data, owned exclusively by the user. Path-based ownership ensures only the authenticated user can access their profile.\n*   `/users/{userId}/settings`: Stores user settings, owned exclusively by the user.  Path-based ownership ensures only the authenticated user can access their settings.\n*   `/users/{userId}/chats/{chatId}`: Stores chat sessions associated with a user. Path-based ownership guarantees that only the owner user can access their chat sessions. List operations are also secure as they are scoped to the user's ID.\n*   `/users/{userId}/chats/{chatId}/messages/{messageId}`: Stores messages within a specific chat session. Path-based ownership continues, ensuring only the owner user has access to these messages. Again, list operations are secure due to scoping.\n\nThis structure facilitates simple and robust security rules because authorization checks only need to verify that the `request.auth.uid` matches the `userId` in the path.  The design adheres to DBAC principles by relying solely on `request.auth.uid` for authorization and avoids custom claims. Rules are not filters (QAPs) because list operations are naturally scoped by the user ID."
+  }
+}
+    
