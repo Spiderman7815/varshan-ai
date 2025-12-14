@@ -22,11 +22,23 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import { doc } from "firebase/firestore";
-import { updateProfile } from "firebase/auth";
+import { collection, doc, getDocs, writeBatch } from "firebase/firestore";
+import { deleteUser, updateProfile } from "firebase/auth";
 import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 const profileSchema = z.object({
   displayName: z.string().min(3, "Display name must be at least 3 characters").max(50, "Display name must be less than 50 characters"),
@@ -38,7 +50,9 @@ export default function ProfilePage() {
   const { user, isUserLoading } = useUser();
   const { firestore, auth } = useFirebase();
   const { toast } = useToast();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -80,7 +94,6 @@ export default function ProfilePage() {
 
       // Update Firestore user document
       updateDocumentNonBlocking(userProfileRef, {
-        id: user.uid, // Ensure the ID is included in the update
         displayName: values.displayName,
       });
       
@@ -88,14 +101,66 @@ export default function ProfilePage() {
         title: "Profile Updated",
         description: "Your profile has been successfully updated.",
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Update Failed",
-        description: "There was an error updating your profile.",
+        description: error.message || "There was an error updating your profile.",
       });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    if (!user || !auth.currentUser) return;
+    setDeleting(true);
+    
+    try {
+      // 1. Delete all user data from Firestore
+      const batch = writeBatch(firestore);
+      const chatsCollectionRef = collection(firestore, "users", user.uid, "chats");
+      const chatsSnapshot = await getDocs(chatsCollectionRef);
+
+      for (const chatDoc of chatsSnapshot.docs) {
+        // Delete messages subcollection
+        const messagesCollectionRef = collection(chatDoc.ref, "messages");
+        const messagesSnapshot = await getDocs(messagesCollectionRef);
+        messagesSnapshot.forEach((messageDoc) => {
+          batch.delete(messageDoc.ref);
+        });
+        // Delete chat doc
+        batch.delete(chatDoc.ref);
+      }
+      
+      // Delete user profile doc
+      if (userProfileRef) {
+        batch.delete(userProfileRef);
+      }
+
+      await batch.commit();
+
+      // 2. Delete user from Firebase Auth
+      await deleteUser(auth.currentUser);
+
+      toast({
+        title: "Account Deleted",
+        description: "Your account and all associated data have been permanently deleted.",
+      });
+      
+      router.replace("/signup");
+
+    } catch (error: any) {
+      console.error("Error deleting account: ", error);
+      toast({
+        variant: "destructive",
+        title: "Deletion Failed",
+        description: error.code === 'auth/requires-recent-login'
+          ? "This is a sensitive operation. Please log out and log back in before deleting your account."
+          : error.message || "An error occurred while deleting your account.",
+      });
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -108,7 +173,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="p-4 md:p-8">
+    <div className="p-4 md:p-8 space-y-8">
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>Profile</CardTitle>
@@ -138,13 +203,47 @@ export default function ProfilePage() {
                   <Input value={user?.email || ""} disabled />
                 </FormControl>
               </FormItem>
-              <Button type="submit" disabled={loading}>
+              <Button type="submit" disabled={loading || deleting}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Changes
               </Button>
             </form>
           </Form>
         </CardContent>
+      </Card>
+
+      <Card className="max-w-2xl mx-auto border-destructive">
+          <CardHeader>
+            <CardTitle className="text-destructive">Delete Account</CardTitle>
+            <CardDescription>
+                Permanently delete your account and all associated data. This action cannot be undone.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+             <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={deleting}>
+                        {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Delete My Account
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete your account,
+                            your profile, and all of your chat history.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive hover:bg-destructive/90">
+                            Yes, delete my account
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+          </CardContent>
       </Card>
     </div>
   );
