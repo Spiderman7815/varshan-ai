@@ -17,7 +17,7 @@ import {
   doc,
   setDoc,
 } from "firebase/firestore";
-import { regenerateAiResponse } from "@/ai/flows/regenerate-ai-response";
+import { chat } from "@/ai/flows/chat-flow";
 import { generateChatTitle } from "@/ai/flows/generate-chat-title";
 import { useToast } from "@/hooks/use-toast";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
@@ -104,7 +104,7 @@ export function ChatLayout({ chatId: initialChatId, initialChat }: ChatLayoutPro
       setTimeout(async () => {
         try {
           const fullPrompt = userMessage.imageUrl ? `${text} (Image attached: ${userMessage.imageUrl})` : text;
-          const aiResponse = await regenerateAiResponse({ prompt: fullPrompt });
+          const aiResponse = await chat({ prompt: fullPrompt });
           await addDoc(messagesRef, { text: aiResponse.response, role: "assistant", createdAt: serverTimestamp() });
           
           if (messages.length === 0) {
@@ -155,7 +155,7 @@ export function ChatLayout({ chatId: initialChatId, initialChat }: ChatLayoutPro
 
         try {
             const fullPrompt = userMessage.imageUrl ? `${userMessage.text} (Image attached: ${userMessage.imageUrl})` : userMessage.text;
-            const aiResponse = await regenerateAiResponse({ prompt: fullPrompt });
+            const aiResponse = await chat({ prompt: fullPrompt });
             
             const messageRef = doc(firestore, "users", user.uid, "chats", currentChatId, "messages", messageId);
             await updateDoc(messageRef, { text: aiResponse.response, createdAt: serverTimestamp() });
