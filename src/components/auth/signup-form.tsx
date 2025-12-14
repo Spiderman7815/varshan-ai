@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -75,12 +76,8 @@ export function SignupForm() {
       photoURL: user.photoURL,
       createdAt: serverTimestamp(),
     });
-    if (user.email) {
+    if (user.email && !user.emailVerified) {
       await sendEmailVerification(user);
-      toast({
-        title: "Verification Email Sent",
-        description: "Please check your inbox to verify your email address.",
-      });
     }
   };
 
@@ -93,6 +90,10 @@ export function SignupForm() {
         values.password
       );
       await handleUserCreation(userCredential.user, values.username);
+      toast({
+        title: "Verification Email Sent",
+        description: "Please check your inbox to verify your email address before logging in.",
+      });
       router.push("/login");
     } catch (error: any) {
       toast({
@@ -245,5 +246,3 @@ export function SignupForm() {
     </Card>
   );
 }
-
-    

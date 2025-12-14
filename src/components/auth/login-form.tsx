@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -8,6 +9,7 @@ import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  signOut,
 } from "firebase/auth";
 import { useAuth } from "@/firebase";
 import { useRouter } from "next/navigation";
@@ -59,7 +61,19 @@ export function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, values.email, values.password);
+      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+
+      if (!userCredential.user.emailVerified) {
+        await signOut(auth);
+        toast({
+          variant: "destructive",
+          title: "Email Not Verified",
+          description: "Please verify your email address before logging in.",
+        });
+        setLoading(false);
+        return;
+      }
+
       router.push("/chat");
     } catch (error: any) {
       toast({
