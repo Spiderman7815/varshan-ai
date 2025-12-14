@@ -36,7 +36,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { collection, doc, getDocs, writeBatch } from "firebase/firestore";
-import { deleteUser, updateProfile } from "firebase/auth";
+import { deleteUser, updateProfile, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -53,6 +53,9 @@ export default function ProfilePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -113,54 +116,60 @@ export default function ProfilePage() {
   }
 
   async function handleDeleteAccount() {
-    if (!user || !auth.currentUser) return;
+    if (!user || !auth.currentUser || !user.email) return;
     setDeleting(true);
-    
+
     try {
-      // 1. Delete all user data from Firestore
-      const batch = writeBatch(firestore);
-      const chatsCollectionRef = collection(firestore, "users", user.uid, "chats");
-      const chatsSnapshot = await getDocs(chatsCollectionRef);
+        // 1. Re-authenticate the user
+        const credential = EmailAuthProvider.credential(user.email, deletePassword);
+        await reauthenticateWithCredential(auth.currentUser, credential);
 
-      for (const chatDoc of chatsSnapshot.docs) {
-        // Delete messages subcollection
-        const messagesCollectionRef = collection(chatDoc.ref, "messages");
-        const messagesSnapshot = await getDocs(messagesCollectionRef);
-        messagesSnapshot.forEach((messageDoc) => {
-          batch.delete(messageDoc.ref);
+        // 2. Delete all user data from Firestore
+        const batch = writeBatch(firestore);
+        const chatsCollectionRef = collection(firestore, "users", user.uid, "chats");
+        const chatsSnapshot = await getDocs(chatsCollectionRef);
+
+        for (const chatDoc of chatsSnapshot.docs) {
+            // Delete messages subcollection
+            const messagesCollectionRef = collection(chatDoc.ref, "messages");
+            const messagesSnapshot = await getDocs(messagesCollectionRef);
+            messagesSnapshot.forEach((messageDoc) => {
+            batch.delete(messageDoc.ref);
+            });
+            // Delete chat doc
+            batch.delete(chatDoc.ref);
+        }
+        
+        // Delete user profile doc
+        if (userProfileRef) {
+            batch.delete(userProfileRef);
+        }
+
+        await batch.commit();
+
+        // 3. Delete user from Firebase Auth
+        await deleteUser(auth.currentUser);
+
+        toast({
+            title: "Account Deleted",
+            description: "Your account and all associated data have been permanently deleted.",
         });
-        // Delete chat doc
-        batch.delete(chatDoc.ref);
-      }
-      
-      // Delete user profile doc
-      if (userProfileRef) {
-        batch.delete(userProfileRef);
-      }
-
-      await batch.commit();
-
-      // 2. Delete user from Firebase Auth
-      await deleteUser(auth.currentUser);
-
-      toast({
-        title: "Account Deleted",
-        description: "Your account and all associated data have been permanently deleted.",
-      });
-      
-      router.replace("/signup");
+        
+        setIsDeleteAlertOpen(false);
+        router.replace("/signup");
 
     } catch (error: any) {
-      console.error("Error deleting account: ", error);
-      toast({
-        variant: "destructive",
-        title: "Deletion Failed",
-        description: error.code === 'auth/requires-recent-login'
-          ? "This is a sensitive operation. Please log out and log back in before deleting your account."
-          : error.message || "An error occurred while deleting your account.",
-      });
+        console.error("Error deleting account: ", error);
+        toast({
+            variant: "destructive",
+            title: "Deletion Failed",
+            description: error.code === 'auth/wrong-password' 
+                ? "Incorrect password. Please try again."
+                : error.message || "An error occurred while deleting your account.",
+        });
     } finally {
-      setDeleting(false);
+        setDeleting(false);
+        setDeletePassword("");
     }
   }
 
@@ -220,10 +229,9 @@ export default function ProfilePage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-             <AlertDialog>
+             <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
                 <AlertDialogTrigger asChild>
                     <Button variant="destructive" disabled={deleting}>
-                        {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         Delete My Account
                     </Button>
                 </AlertDialogTrigger>
@@ -232,14 +240,29 @@ export default function ProfilePage() {
                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                         <AlertDialogDescription>
                             This action cannot be undone. This will permanently delete your account,
-                            your profile, and all of your chat history.
+                            your profile, and all of your chat history. To confirm, please enter your password.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
+                    <div className="space-y-2">
+                        <FormLabel htmlFor="delete-password">Password</FormLabel>
+                        <Input
+                            id="delete-password"
+                            type="password"
+                            value={deletePassword}
+                            onChange={(e) => setDeletePassword(e.target.value)}
+                            placeholder="Enter your password"
+                        />
+                    </div>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteAccount} className="bg-destructive hover:bg-destructive/90">
-                            Yes, delete my account
-                        </AlertDialogAction>
+                        <AlertDialogCancel onClick={() => setDeletePassword("")}>Cancel</AlertDialogCancel>
+                        <Button
+                            variant="destructive"
+                            onClick={handleDeleteAccount}
+                            disabled={deleting || deletePassword.length < 6}
+                        >
+                            {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Delete My Account
+                        </Button>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
