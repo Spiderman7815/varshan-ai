@@ -39,6 +39,7 @@ import { collection, doc, getDocs, writeBatch } from "firebase/firestore";
 import { deleteUser, updateProfile, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { Label } from "@/components/ui/label";
 
 const profileSchema = z.object({
   displayName: z.string().min(3, "Display name must be at least 3 characters").max(50, "Display name must be less than 50 characters"),
@@ -244,7 +245,7 @@ export default function ProfilePage() {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <div className="space-y-2">
-                        <FormLabel htmlFor="delete-password">Password</FormLabel>
+                        <Label htmlFor="delete-password">Password</Label>
                         <Input
                             id="delete-password"
                             type="password"
