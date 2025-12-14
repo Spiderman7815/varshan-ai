@@ -12,13 +12,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
   const router = useRouter();
   const pathname = usePathname();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     if (!isUserLoading) {
       if (!user) {
         router.replace("/login");
       } else if (pathname === "/") {
+        // This handles the case where a logged-in user navigates to the root
+        // of the authenticated section, and redirects them to the chat.
         router.replace("/chat");
       }
     }
@@ -26,6 +28,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (isUserLoading || !user) {
     return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+  
+  // If the user is logged in but we are at the root, show a loader while redirecting.
+  if (pathname === "/") {
+      return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
