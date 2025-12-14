@@ -15,6 +15,7 @@ import {
   serverTimestamp,
   updateDoc,
   doc,
+  setDoc,
 } from "firebase/firestore";
 import { regenerateAiResponse } from "@/ai/flows/regenerate-ai-response";
 import { generateChatTitle } from "@/ai/flows/generate-chat-title";
@@ -110,7 +111,7 @@ export function ChatLayout({ chatId: initialChatId, initialChat }: ChatLayoutPro
             const conversation = `User: ${text}\nAssistant: ${aiResponse.response}`;
             const titleResponse = await generateChatTitle({ conversation });
             const chatDocRef = doc(firestore, "users", user.uid, "chats", chatId!);
-            await updateDoc(chatDocRef, { title: titleResponse.title });
+            await setDoc(chatDocRef, { title: titleResponse.title }, { merge: true });
           }
         } catch (aiError) {
           console.error("AI response error:", aiError);
