@@ -10,8 +10,10 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signOut,
+  User as FirebaseUser
 } from "firebase/auth";
-import { useAuth } from "@/firebase";
+import { useFirebase } from "@/firebase";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -45,7 +47,7 @@ const formSchema = z.object({
 });
 
 export function LoginForm() {
-  const auth = useAuth();
+  const { auth, firestore } = useFirebase();
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -58,30 +60,46 @@ export function LoginForm() {
     },
   });
 
+  const handleUserDocument = async (user: FirebaseUser, displayName?: string | null) => {
+    const userRef = doc(firestore, "users", user.uid);
+    const docSnap = await getDoc(userRef);
+    if (!docSnap.exists()) {
+      await setDoc(userRef, {
+        id: user.uid,
+        email: user.email,
+        displayName: displayName || user.displayName || user.email?.split("@")[0],
+        photoURL: user.photoURL,
+        createdAt: serverTimestamp(),
+      });
+    }
+  };
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
 
-      if (!userCredential.user.emailVerified) {
+      if (!user.emailVerified) {
         await signOut(auth);
         toast({
           variant: "destructive",
           title: "Email Not Verified",
-          description: "Please verify your email address before logging in.",
+          description: "Please check your inbox and verify your email address before logging in.",
         });
         setLoading(false);
         return;
       }
-
+      
+      await handleUserDocument(user);
       router.push("/chat");
+
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Login Failed",
         description: error.message,
       });
-    } finally {
       setLoading(false);
     }
   }
@@ -90,18 +108,20 @@ export function LoginForm() {
     setLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      await handleUserDocument(result.user);
       router.push("/chat");
-    } catch (error: any) {
+    } catch (error: any)
+      {
       toast({
         variant: "destructive",
         title: "Google Sign-In Failed",
         description: error.message,
       });
-    } finally {
       setLoading(false);
     }
   }
+
 
   return (
     <Card className="w-full">

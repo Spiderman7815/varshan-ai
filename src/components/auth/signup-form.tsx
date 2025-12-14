@@ -10,10 +10,11 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   sendEmailVerification,
+  updateProfile,
   User as FirebaseUser
 } from "firebase/auth";
 import { useFirebase } from "@/firebase";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -67,17 +68,17 @@ export function SignupForm() {
     },
   });
 
-  const handleUserCreation = async (user: FirebaseUser, username: string | null) => {
+  const handleUserDocument = async (user: FirebaseUser, displayName?: string | null) => {
     const userRef = doc(firestore, "users", user.uid);
-    await setDoc(userRef, {
-      id: user.uid,
-      email: user.email,
-      displayName: username || user.displayName || user.email?.split("@")[0],
-      photoURL: user.photoURL,
-      createdAt: serverTimestamp(),
-    });
-    if (user.email && !user.emailVerified) {
-      await sendEmailVerification(user);
+    const docSnap = await getDoc(userRef);
+    if (!docSnap.exists()) {
+      await setDoc(userRef, {
+        id: user.uid,
+        email: user.email,
+        displayName: displayName || user.displayName || user.email?.split("@")[0],
+        photoURL: user.photoURL,
+        createdAt: serverTimestamp(),
+      });
     }
   };
 
@@ -89,12 +90,16 @@ export function SignupForm() {
         values.email,
         values.password
       );
-      await handleUserCreation(userCredential.user, values.username);
+      
+      await updateProfile(userCredential.user, { displayName: values.username });
+      await sendEmailVerification(userCredential.user);
+      
       toast({
         title: "Verification Email Sent",
-        description: "Please check your inbox to verify your email address before logging in.",
+        description: "Please check your inbox to verify your email address, then you can log in.",
       });
       router.push("/login");
+
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -111,13 +116,7 @@ export function SignupForm() {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      // Check if user document already exists
-      const userDoc = await doc(firestore, "users", result.user.uid);
-      const userDocSnap = await (await import("firebase/firestore")).getDoc(userDoc);
-      
-      if (!userDocSnap.exists()) {
-        await handleUserCreation(result.user, null);
-      }
+      await handleUserDocument(result.user);
       router.push("/chat");
     } catch (error: any) {
       toast({
