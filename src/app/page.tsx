@@ -131,11 +131,6 @@ export default function Home() {
       <footer className="border-t bg-muted">
         <div className="container mx-auto flex flex-col md:flex-row items-center justify-between py-6 px-4 md:px-6 gap-4">
             <p className="text-sm text-muted-foreground">&copy; {new Date().getFullYear()} VarshanAI. All rights reserved.</p>
-            <div className="flex gap-4">
-                <Link href="/terms" className="text-sm text-muted-foreground hover:text-primary">
-                    Terms of Service
-                </Link>
-            </div>
         </div>
       </footer>
     </div>
