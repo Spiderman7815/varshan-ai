@@ -19,6 +19,7 @@ import {
 } from "firebase/firestore";
 import { chat } from "@/ai/flows/chat-flow";
 import { generateChatTitle } from "@/ai/flows/generate-chat-title";
+import { textToSpeech } from "@/ai/flows/text-to-speech-flow";
 import { useToast } from "@/hooks/use-toast";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { useRouter } from "next/navigation";
@@ -37,6 +38,7 @@ export function ChatLayout({ chatId: initialChatId, initialChat }: ChatLayoutPro
   const { toast } = useToast();
   const router = useRouter();
   const [currentChatId, setCurrentChatId] = useState(initialChatId);
+  const [activeAudio, setActiveAudio] = useState<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     setCurrentChatId(initialChatId);
@@ -60,13 +62,23 @@ export function ChatLayout({ chatId: initialChatId, initialChat }: ChatLayoutPro
     return () => unsubscribe();
   }, [initialChatId, firestore, user]);
 
+  useEffect(() => {
+    // Stop any playing audio when the chat changes
+    return () => {
+      if (activeAudio) {
+        activeAudio.pause();
+        setActiveAudio(null);
+      }
+    };
+  }, [currentChatId, activeAudio]);
+
+
   const handleSendMessage = useCallback(async (text: string, file: File | null) => {
     if (!user || (!text.trim() && !file)) return;
     setLoading(true);
 
     try {
       let chatId = currentChatId;
-      // Create new chat if it doesn't exist
       if (!chatId) {
         const newChatRef = await addDoc(collection(firestore, "users", user.uid, "chats"), {
           title: "New Chat",
@@ -99,16 +111,26 @@ export function ChatLayout({ chatId: initialChatId, initialChat }: ChatLayoutPro
       
       await addDoc(messagesRef, userMessage);
 
-      // We need to wait a bit for the user message to appear before sending to the AI
-      // This is a temporary workaround for the race condition
       setTimeout(async () => {
         try {
           const fullPrompt = userMessage.imageUrl ? `${text} (Image attached: ${userMessage.imageUrl})` : text;
           const aiResponse = await chat({ prompt: fullPrompt });
-          await addDoc(messagesRef, { text: aiResponse.response, role: "assistant", createdAt: serverTimestamp() });
           
-          if (messages.length === 0) {
-            const conversation = `User: ${text}\nAssistant: ${aiResponse.response}`;
+          const aiMessage: Omit<Message, "id"> = { role: "assistant", createdAt: serverTimestamp() };
+          if (aiResponse.response) {
+            aiMessage.text = aiResponse.response;
+          }
+          if (aiResponse.imageUrl) {
+            aiMessage.imageUrl = aiResponse.imageUrl;
+          }
+           if (aiResponse.toolUsed === 'webSearch') {
+            aiMessage.toolUsed = 'webSearch';
+          }
+
+          await addDoc(messagesRef, aiMessage);
+          
+          if (messages.length === 0 && aiMessage.text) {
+            const conversation = `User: ${text}\nAssistant: ${aiMessage.text}`;
             const titleResponse = await generateChatTitle({ conversation });
             const chatDocRef = doc(firestore, "users", user.uid, "chats", chatId!);
             await setDoc(chatDocRef, { title: titleResponse.title }, { merge: true });
@@ -158,7 +180,13 @@ export function ChatLayout({ chatId: initialChatId, initialChat }: ChatLayoutPro
             const aiResponse = await chat({ prompt: fullPrompt });
             
             const messageRef = doc(firestore, "users", user.uid, "chats", currentChatId, "messages", messageId);
-            await updateDoc(messageRef, { text: aiResponse.response, createdAt: serverTimestamp() });
+            const updatedMessage: Partial<Message> = { createdAt: serverTimestamp() };
+            if (aiResponse.response) updatedMessage.text = aiResponse.response;
+            if (aiResponse.imageUrl) updatedMessage.imageUrl = aiResponse.imageUrl;
+            if (aiResponse.toolUsed) updatedMessage.toolUsed = aiResponse.toolUsed;
+
+
+            await updateDoc(messageRef, updatedMessage);
             
         } catch (error) {
             console.error("AI regeneration error:", error);
@@ -172,13 +200,45 @@ export function ChatLayout({ chatId: initialChatId, initialChat }: ChatLayoutPro
         }
     };
 
+    const handleTextToSpeech = async (text: string) => {
+      if (activeAudio) {
+        activeAudio.pause();
+        if (activeAudio.src.startsWith('blob:')) {
+           URL.revokeObjectURL(activeAudio.src);
+        }
+        setActiveAudio(null);
+        return;
+      }
+      
+      try {
+        setLoading(true);
+        const { audioDataUri } = await textToSpeech({ text });
+        const audio = new Audio(audioDataUri);
+        setActiveAudio(audio);
+        audio.play();
+        audio.onended = () => setActiveAudio(null);
+
+      } catch (error) {
+        console.error("Text-to-speech error:", error);
+        toast({
+          variant: "destructive",
+          title: "Text-to-Speech Failed",
+          description: "Could not convert text to audio.",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
   return (
     <div className="relative flex h-full flex-col">
       <div className="flex-1 overflow-y-auto">
         <ChatMessages
           messages={messages}
           onRegenerate={handleRegenerate}
+          onTextToSpeech={handleTextToSpeech}
           isLoading={loading && (messages.length === 0 || messages[messages.length - 1].role === 'user')}
+          isSpeaking={!!activeAudio}
         />
       </div>
       <div className="border-t bg-background px-4 py-4 md:px-6">

@@ -7,10 +7,11 @@ export interface User extends FirebaseUser {
 
 export interface Message {
   id: string;
-  text: string;
+  text?: string;
   imageUrl?: string;
   role: "user" | "assistant";
   createdAt: any; // Firestore timestamp
+  toolUsed?: 'webSearch' | 'imageGeneration';
 }
 
 export interface Chat {

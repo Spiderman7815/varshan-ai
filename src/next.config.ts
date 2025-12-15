@@ -1,4 +1,5 @@
 import type {NextConfig} from 'next';
+require('dotenv').config({ path: './.env' });
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -28,19 +29,23 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+       {
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+        port: '',
+        pathname: '/**',
+      }
     ],
+    dangerouslyAllowSVG: true,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
   env: {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-  },
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.externals.push({
-        'dotenv': 'dotenv',
-      });
-    }
-    return config;
-  },
+    GEMINI_API_KEY_2: process.env.GEMINI_API_KEY_2,
+    GEMINI_API_KEY_3: process.env.GEMINI_API_KEY_3,
+    TAVILY_API_KEY: process.env.TAVILY_API_KEY
+  }
 };
 
 export default nextConfig;

@@ -5,7 +5,7 @@ import { useRef, useEffect } from "react";
 import type { Message } from "@/lib/types";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { useUser } from "@/firebase";
-import { Code2, Loader2, RefreshCw, Copy, Download } from "lucide-react";
+import { Code2, Loader2, RefreshCw, Copy, Download, Search, Volume2, StopCircle } from "lucide-react";
 import Image from "next/image";
 import { Button } from "../ui/button";
 import ReactMarkdown from 'react-markdown';
@@ -18,10 +18,12 @@ import { useToast } from "@/hooks/use-toast";
 interface ChatMessagesProps {
   messages: Message[];
   onRegenerate: (messageId: string) => void;
+  onTextToSpeech: (text: string) => void;
   isLoading: boolean;
+  isSpeaking: boolean;
 }
 
-export function ChatMessages({ messages, onRegenerate, isLoading }: ChatMessagesProps) {
+export function ChatMessages({ messages, onRegenerate, onTextToSpeech, isLoading, isSpeaking }: ChatMessagesProps) {
   const { user } = useUser();
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -93,9 +95,9 @@ export function ChatMessages({ messages, onRegenerate, isLoading }: ChatMessages
       {messages.map((message) => (
         <div
           key={message.id}
-          className={`flex items-start gap-4 ${
-            message.role === "user" ? "justify-end" : ""
-          }`}
+          className={cn(`flex items-start gap-4`, 
+              message.role === "user" ? "justify-end" : ""
+          )}
         >
           {message.role === "assistant" && (
             <Avatar className="h-9 w-9">
@@ -109,6 +111,12 @@ export function ChatMessages({ messages, onRegenerate, isLoading }: ChatMessages
               message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted",
             )}
           >
+             {message.toolUsed === 'webSearch' && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+                <Search className="h-3.5 w-3.5" />
+                <span>Searched the web</span>
+              </div>
+            )}
             {message.role === 'assistant' ? (
                 <div className="prose prose-sm dark:prose-invert max-w-none">
                     <ReactMarkdown
@@ -141,7 +149,7 @@ export function ChatMessages({ messages, onRegenerate, isLoading }: ChatMessages
                             )},
                         }}
                     >
-                        {message.text}
+                        {message.text || ''}
                     </ReactMarkdown>
                 </div>
             ) : (
@@ -151,7 +159,7 @@ export function ChatMessages({ messages, onRegenerate, isLoading }: ChatMessages
               <div className="mt-2">
                 <Image
                   src={message.imageUrl}
-                  alt="Uploaded content"
+                  alt={message.text || "Generated image"}
                   width={300}
                   height={300}
                   className="rounded-lg"
@@ -159,14 +167,28 @@ export function ChatMessages({ messages, onRegenerate, isLoading }: ChatMessages
               </div>
             )}
             {message.role === 'assistant' && (
-                <Button
-                    size="icon"
-                    variant="ghost"
-                    className="absolute -right-10 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => onRegenerate(message.id)}
-                >
-                    <RefreshCw className="h-4 w-4"/>
-                </Button>
+                <div className="absolute -right-12 top-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={() => onRegenerate(message.id)}
+                        title="Regenerate"
+                    >
+                        <RefreshCw className="h-4 w-4"/>
+                    </Button>
+                    {message.text && (
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => onTextToSpeech(message.text || '')}
+                            title={isSpeaking ? "Stop" : "Listen"}
+                        >
+                            {isSpeaking ? <StopCircle className="h-4 w-4"/> : <Volume2 className="h-4 w-4"/>}
+                        </Button>
+                    )}
+                </div>
             )}
           </div>
           {message.role === "user" && (

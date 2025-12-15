@@ -7,7 +7,6 @@ import { useRouter, useParams } from "next/navigation";
 import {
   collection,
   query,
-  where,
   onSnapshot,
   addDoc,
   serverTimestamp,
@@ -34,6 +33,8 @@ import {
   X,
   Code2,
   Download,
+  FileText,
+  Loader2
 } from "lucide-react";
 import { ScrollArea } from "../ui/scroll-area";
 import type { Chat, Message } from "@/lib/types";
@@ -51,6 +52,8 @@ import {
 import { Input } from "../ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { summarizeChatHistory } from "@/ai/flows/summarize-chat-history";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 
 interface ChatSidebarProps {
     userId: string;
@@ -62,6 +65,9 @@ export function ChatSidebar({ userId, isOpen, setIsOpen }: ChatSidebarProps) {
   const [chats, setChats] = useState<Chat[]>([]);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
+  const [summarizing, setSummarizing] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [isSummaryAlertOpen, setIsSummaryAlertOpen] = useState(false);
   const router = useRouter();
   const params = useParams();
   const { firestore } = useFirebase();
@@ -97,7 +103,6 @@ export function ChatSidebar({ userId, isOpen, setIsOpen }: ChatSidebarProps) {
   const deleteChat = async (chatIdToDelete: string) => {
     try {
       const chatDocRef = doc(firestore, "users", userId, "chats", chatIdToDelete);
-      // Delete all messages in the chat
       const messagesQuery = query(collection(chatDocRef, "messages"));
       const messagesSnapshot = await getDocs(messagesQuery);
       const batch = writeBatch(firestore);
@@ -106,7 +111,6 @@ export function ChatSidebar({ userId, isOpen, setIsOpen }: ChatSidebarProps) {
       });
       await batch.commit();
 
-      // Delete the chat document
       await deleteDoc(chatDocRef);
 
       toast({ title: "Chat deleted" });
@@ -132,7 +136,7 @@ export function ChatSidebar({ userId, isOpen, setIsOpen }: ChatSidebarProps) {
       chatContent += messages
         .map(msg => {
           const role = msg.role === 'user' ? 'User' : 'VarshanAI';
-          let content = `${role}: ${msg.text}`;
+          let content = `${role}: ${msg.text || ''}`;
           if (msg.imageUrl) {
             content += `\n[Image: ${msg.imageUrl}]`;
           }
@@ -154,6 +158,31 @@ export function ChatSidebar({ userId, isOpen, setIsOpen }: ChatSidebarProps) {
     } catch (error) {
       console.error("Error downloading chat:", error);
       toast({ variant: "destructive", title: "Error downloading chat" });
+    }
+  };
+
+  const summarizeChat = async (chatIdToSummarize: string) => {
+    setSummarizing(true);
+    setSummary(null);
+    setIsSummaryAlertOpen(true);
+    try {
+       const messagesQuery = query(
+        collection(firestore, "users", userId, "chats", chatIdToSummarize, "messages"),
+        orderBy("createdAt", "asc")
+      );
+      const querySnapshot = await getDocs(messagesQuery);
+      const messages: Message[] = querySnapshot.docs.map(doc => ({id: doc.id, ...doc.data()} as Message));
+      
+      const chatHistory = messages.map(msg => `${msg.role}: ${msg.text || (msg.imageUrl ? '[Image]' : '')}`).join("\n");
+      const result = await summarizeChatHistory({ chatHistory });
+
+      setSummary(result.summary);
+    } catch (error) {
+      console.error("Error summarizing chat:", error);
+      toast({ variant: "destructive", title: "Error summarizing chat" });
+      setIsSummaryAlertOpen(false);
+    } finally {
+      setSummarizing(false);
     }
   };
 
@@ -202,9 +231,9 @@ export function ChatSidebar({ userId, isOpen, setIsOpen }: ChatSidebarProps) {
           {chats.map((chatItem) => (
             <div
               key={chatItem.id}
-              className={`group relative rounded-md p-2 hover:bg-muted ${
+              className={cn("group relative rounded-md p-2 hover:bg-muted",
                 chatId === chatItem.id ? "bg-muted font-semibold" : ""
-              }`}
+              )}
             >
               {editingChatId === chatItem.id ? (
                 <div className="flex items-center gap-2">
@@ -247,6 +276,7 @@ export function ChatSidebar({ userId, isOpen, setIsOpen }: ChatSidebarProps) {
                     size="icon"
                     variant="ghost"
                     className="h-7 w-7"
+                    title="Edit title"
                     onClick={() => startEditing(chatItem)}
                   >
                     <Edit className="h-4 w-4" />
@@ -255,6 +285,16 @@ export function ChatSidebar({ userId, isOpen, setIsOpen }: ChatSidebarProps) {
                     size="icon"
                     variant="ghost"
                     className="h-7 w-7"
+                    title="Summarize chat"
+                    onClick={() => summarizeChat(chatItem.id)}
+                  >
+                    <FileText className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    title="Download chat"
                     onClick={() => downloadChat(chatItem.id, chatItem.title)}
                   >
                     <Download className="h-4 w-4" />
@@ -265,6 +305,7 @@ export function ChatSidebar({ userId, isOpen, setIsOpen }: ChatSidebarProps) {
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7"
+                        title="Delete chat"
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -290,6 +331,27 @@ export function ChatSidebar({ userId, isOpen, setIsOpen }: ChatSidebarProps) {
           ))}
         </div>
       </ScrollArea>
+       <AlertDialog open={isSummaryAlertOpen} onOpenChange={setIsSummaryAlertOpen}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitleComponent>Chat Summary</AlertDialogTitleComponent>
+              </AlertDialogHeader>
+              {summarizing ? (
+                  <div className="flex items-center justify-center p-8">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+              ) : (
+                  <Alert>
+                      <AlertDescription>
+                          {summary}
+                      </AlertDescription>
+                  </Alert>
+              )}
+              <AlertDialogFooter>
+                  <AlertDialogAction onClick={() => setIsSummaryAlertOpen(false)}>Close</AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 
