@@ -114,8 +114,9 @@ const chatFlow = ai.defineFlow(
     });
 
     const choice = llmResponse.choices[0];
-
-    if (choice.toolCalls) {
+    
+    // If the model chose to call a tool
+    if (choice && choice.toolCalls) {
         const toolCall = choice.toolCalls[0];
         const toolResponse = await toolCall.run();
         
@@ -143,6 +144,6 @@ const chatFlow = ai.defineFlow(
     }
 
     // If no tool was called, just return the text response
-    return { response: choice.text };
+    return { response: llmResponse.text };
   }
 );
