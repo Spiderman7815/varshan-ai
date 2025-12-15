@@ -37,9 +37,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { collection, doc, getDocs, writeBatch } from "firebase/firestore";
 import { deleteUser, updateProfile, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
-import { Loader2 } from "lucide-react";
+import { ChevronRight, FileText, Info, Loader2, Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
+import Link from "next/link";
+import { Separator } from "@/components/ui/separator";
 
 const profileSchema = z.object({
   displayName: z.string().min(3, "Display name must be at least 3 characters").max(50, "Display name must be less than 50 characters"),
@@ -219,6 +221,38 @@ export default function ProfilePage() {
               </Button>
             </form>
           </Form>
+        </CardContent>
+      </Card>
+      
+      <Card className="max-w-2xl mx-auto">
+        <CardHeader>
+          <CardTitle>About & Legal</CardTitle>
+          <CardDescription>
+            Information about the application and legal documents.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="divide-y">
+            <Link href="/about" className="flex items-center justify-between p-4 hover:bg-muted/50 rounded-t-lg">
+                <div className="flex items-center gap-4">
+                    <Info className="h-5 w-5 text-muted-foreground" />
+                    <span>About VarshanAI</span>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </Link>
+            <Link href="/terms" className="flex items-center justify-between p-4 hover:bg-muted/50">
+                <div className="flex items-center gap-4">
+                    <FileText className="h-5 w-5 text-muted-foreground" />
+                    <span>Terms of Service</span>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </Link>
+            <Link href="/privacy" className="flex items-center justify-between p-4 hover:bg-muted/50 rounded-b-lg">
+                <div className="flex items-center gap-4">
+                    <Shield className="h-5 w-5 text-muted-foreground" />
+                    <span>Privacy Policy</span>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </Link>
         </CardContent>
       </Card>
 
