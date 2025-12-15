@@ -5,7 +5,7 @@ import { useRef, useEffect } from "react";
 import type { Message } from "@/lib/types";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { useUser } from "@/firebase";
-import { Code2, Loader2, RefreshCw, Copy } from "lucide-react";
+import { Code2, Loader2, RefreshCw, Copy, Download } from "lucide-react";
 import Image from "next/image";
 import { Button } from "../ui/button";
 import ReactMarkdown from 'react-markdown';
@@ -41,12 +41,39 @@ export function ChatMessages({ messages, onRegenerate, isLoading }: ChatMessages
     return name[0];
   };
 
+  const getCodeFromNode = (node: any): string => {
+    if (!node) return '';
+    if (node.type === 'text') return node.value;
+    if (node.type === 'element' && node.children) {
+      return node.children.map(getCodeFromNode).join('');
+    }
+    return '';
+  }
+
   const handleCopy = (code: string) => {
     navigator.clipboard.writeText(code).then(() => {
         toast({ title: "Code copied to clipboard!" });
     }).catch(err => {
         toast({ variant: "destructive", title: "Failed to copy code", description: err.message });
     });
+  };
+
+  const handleDownload = (code: string) => {
+    try {
+        const blob = new Blob([code], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        const fileExtension = 'txt'; // Default, can be improved to detect language
+        link.download = `code-snippet.${fileExtension}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        toast({ title: "Code snippet downloaded." });
+    } catch (error: any) {
+        toast({ variant: "destructive", title: "Download failed", description: error.message });
+    }
   };
 
   if (messages.length === 0 && !isLoading) {
@@ -87,19 +114,31 @@ export function ChatMessages({ messages, onRegenerate, isLoading }: ChatMessages
                     <ReactMarkdown
                         rehypePlugins={[rehypeHighlight]}
                         components={{
-                            pre: ({node, ...props}) => (
+                            pre: ({node, ...props}) => {
+                                const codeContent = getCodeFromNode(node?.children[0]);
+                                return (
                                 <div className="relative">
-                                    <pre {...props} className="bg-background/50 p-4 rounded-md my-4" />
-                                    <Button
-                                        size="icon"
-                                        variant="ghost"
-                                        className="absolute top-2 right-2 h-7 w-7"
-                                        onClick={() => handleCopy(node?.children[0]?.type === 'element' ? (node.children[0].children[0] as any).value : '')}
-                                    >
-                                        <Copy className="h-4 w-4" />
-                                    </Button>
+                                    <pre {...props} className="bg-background/50 p-4 rounded-md my-4 pr-20" />
+                                    <div className="absolute top-2 right-2 flex items-center gap-1">
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-7 w-7"
+                                            onClick={() => handleCopy(codeContent)}
+                                        >
+                                            <Copy className="h-4 w-4" />
+                                        </Button>
+                                         <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-7 w-7"
+                                            onClick={() => handleDownload(codeContent)}
+                                        >
+                                            <Download className="h-4 w-4" />
+                                        </Button>
+                                    </div>
                                 </div>
-                            ),
+                            )},
                         }}
                     >
                         {message.text}
