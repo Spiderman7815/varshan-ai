@@ -1,15 +1,14 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   User as FirebaseUser
 } from "firebase/auth";
 import { useFirebase } from "@/firebase";
@@ -53,28 +52,6 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  useEffect(() => {
-    const handleRedirectResult = async () => {
-      try {
-        setGoogleLoading(true);
-        const result = await getRedirectResult(auth);
-        if (result) {
-          await handleUserDocument(result.user);
-          router.push("/chat");
-        }
-      } catch (error: any) {
-        toast({
-          variant: "destructive",
-          title: "Google Sign-In Failed",
-          description: error.message,
-        });
-      } finally {
-        setGoogleLoading(false);
-      }
-    };
-    handleRedirectResult();
-  }, [auth, router, toast]);
-
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -104,7 +81,6 @@ export function LoginForm() {
       const user = userCredential.user;
 
       if (!user.emailVerified) {
-        // await signOut(auth);
         toast({
           variant: "destructive",
           title: "Email Not Verified",
@@ -129,8 +105,20 @@ export function LoginForm() {
 
   async function handleGoogleSignIn() {
     setGoogleLoading(true);
-    const provider = new GoogleAuthProvider();
-    await signInWithRedirect(auth, provider);
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      await handleUserDocument(result.user);
+      router.push("/chat");
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Google Sign-In Failed",
+        description: error.message,
+      });
+    } finally {
+      setGoogleLoading(false);
+    }
   }
 
 
