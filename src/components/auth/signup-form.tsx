@@ -1,14 +1,15 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   sendEmailVerification,
   updateProfile,
   User as FirebaseUser
@@ -70,6 +71,28 @@ export function SignupForm() {
     },
   });
 
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      setGoogleLoading(true);
+      try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+          await handleUserDocument(result.user);
+          router.push("/chat");
+        }
+      } catch (error: any) {
+        toast({
+          variant: "destructive",
+          title: "Google Sign-In Failed",
+          description: error.message,
+        });
+      } finally {
+        setGoogleLoading(false);
+      }
+    };
+    handleRedirectResult();
+  }, [auth, router, toast]);
+
   const handleUserDocument = async (user: FirebaseUser, displayName?: string | null) => {
     const userRef = doc(firestore, "users", user.uid);
     const docSnap = await getDoc(userRef);
@@ -102,7 +125,7 @@ export function SignupForm() {
       });
       router.push("/login");
 
-    } catch (error: any) {
+    } catch (error: any) => {
       toast({
         variant: "destructive",
         title: "Sign Up Failed",
@@ -115,20 +138,8 @@ export function SignupForm() {
 
   async function handleGoogleSignIn() {
     setGoogleLoading(true);
-    try {
-        const provider = new GoogleAuthProvider();
-        const result = await signInWithPopup(auth, provider);
-        await handleUserDocument(result.user);
-        router.push("/chat");
-    } catch (error: any) {
-        toast({
-            variant: "destructive",
-            title: "Google Sign-In Failed",
-            description: error.message,
-        });
-    } finally {
-        setGoogleLoading(false);
-    }
+    const provider = new GoogleAuthProvider();
+    await signInWithRedirect(auth, provider);
   }
 
   return (
