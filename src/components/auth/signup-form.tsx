@@ -1,14 +1,15 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   sendEmailVerification,
   updateProfile,
   User as FirebaseUser
@@ -57,6 +58,30 @@ export function SignupForm() {
   const { auth, firestore } = useFirebase();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        setGoogleLoading(true);
+        const result = await getRedirectResult(auth);
+        if (result) {
+          await handleUserDocument(result.user);
+          router.push("/chat");
+        }
+      } catch (error: any) {
+        toast({
+          variant: "destructive",
+          title: "Google Sign-In Failed",
+          description: error.message,
+        });
+      } finally {
+        setGoogleLoading(false);
+      }
+    };
+    handleRedirectResult();
+  }, [auth, router, toast]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -112,21 +137,9 @@ export function SignupForm() {
   }
 
   async function handleGoogleSignIn() {
-    setLoading(true);
+    setGoogleLoading(true);
     const provider = new GoogleAuthProvider();
-    try {
-      const result = await signInWithPopup(auth, provider);
-      await handleUserDocument(result.user);
-      router.push("/chat");
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Google Sign-In Failed",
-        description: error.message,
-      });
-    } finally {
-      setLoading(false);
-    }
+    await signInWithRedirect(auth, provider);
   }
 
   return (
@@ -210,8 +223,8 @@ export function SignupForm() {
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" className="w-full" disabled={loading || googleLoading}>
+              {(loading || googleLoading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Create Account
             </Button>
           </form>
@@ -224,9 +237,9 @@ export function SignupForm() {
           variant="outline"
           className="w-full"
           onClick={handleGoogleSignIn}
-          disabled={loading}
+          disabled={loading || googleLoading}
         >
-          {loading ? (
+          {googleLoading ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <GoogleIcon className="mr-2 h-5 w-5" />

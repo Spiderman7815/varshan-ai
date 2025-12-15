@@ -1,15 +1,15 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
-  signInWithPopup,
-  signOut,
+  signInWithRedirect,
+  getRedirectResult,
   User as FirebaseUser
 } from "firebase/auth";
 import { useFirebase } from "@/firebase";
@@ -51,6 +51,29 @@ export function LoginForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        setGoogleLoading(true);
+        const result = await getRedirectResult(auth);
+        if (result) {
+          await handleUserDocument(result.user);
+          router.push("/chat");
+        }
+      } catch (error: any) {
+        toast({
+          variant: "destructive",
+          title: "Google Sign-In Failed",
+          description: error.message,
+        });
+      } finally {
+        setGoogleLoading(false);
+      }
+    };
+    handleRedirectResult();
+  }, [auth, router, toast]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -81,7 +104,7 @@ export function LoginForm() {
       const user = userCredential.user;
 
       if (!user.emailVerified) {
-        await signOut(auth);
+        // await signOut(auth);
         toast({
           variant: "destructive",
           title: "Email Not Verified",
@@ -105,21 +128,9 @@ export function LoginForm() {
   }
 
   async function handleGoogleSignIn() {
-    setLoading(true);
+    setGoogleLoading(true);
     const provider = new GoogleAuthProvider();
-    try {
-      const result = await signInWithPopup(auth, provider);
-      await handleUserDocument(result.user);
-      router.push("/chat");
-    } catch (error: any)
-      {
-      toast({
-        variant: "destructive",
-        title: "Google Sign-In Failed",
-        description: error.message,
-      });
-      setLoading(false);
-    }
+    await signInWithRedirect(auth, provider);
   }
 
 
@@ -172,8 +183,8 @@ export function LoginForm() {
                 <Link href="/forgot-password">Forgot password?</Link>
               </Button>
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" className="w-full" disabled={loading || googleLoading}>
+              {(loading || googleLoading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Sign In
             </Button>
           </form>
@@ -186,9 +197,9 @@ export function LoginForm() {
           variant="outline"
           className="w-full"
           onClick={handleGoogleSignIn}
-          disabled={loading}
+          disabled={loading || googleLoading}
         >
-          {loading ? (
+          {googleLoading ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <GoogleIcon className="mr-2 h-5 w-5" />
