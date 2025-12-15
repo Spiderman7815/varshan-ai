@@ -1,5 +1,5 @@
 import type {NextConfig} from 'next';
-require('dotenv').config({ path: './.env.local' });
+require('dotenv').config({ path: './.env' });
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -33,6 +33,8 @@ const nextConfig: NextConfig = {
   },
   env: {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    GEMINI_API_KEY_2: process.env.GEMINI_API_KEY_2,
+    GEMINI_API_KEY_3: process.env.GEMINI_API_KEY_3,
   }
 };
 
