@@ -29,12 +29,19 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+       {
+        protocol: 'https',
+        hostname: 'firebasestorage.googleapis.com',
+        port: '',
+        pathname: '/**',
+      }
     ],
   },
   env: {
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     GEMINI_API_KEY_2: process.env.GEMINI_API_KEY_2,
     GEMINI_API_KEY_3: process.env.GEMINI_API_KEY_3,
+    TAVILY_API_KEY: process.env.TAVILY_API_KEY,
   }
 };
 
