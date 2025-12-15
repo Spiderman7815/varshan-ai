@@ -113,14 +113,14 @@ const chatFlow = ai.defineFlow(
       tools: [webSearchTool, imageGenerationTool],
     });
 
-    const choice = llmResponse.choices[0];
+    const choice = llmResponse.choices?.[0];
     
     // If the model chose to call a tool
     if (choice && choice.toolCalls) {
         const toolCall = choice.toolCalls[0];
-        const toolResponse = await toolCall.run();
         
         if (toolCall.tool.name === 'imageGeneration') {
+            const toolResponse = await toolCall.run();
             return {
                 imageUrl: toolResponse.imageUrl,
                 toolUsed: 'imageGeneration',
