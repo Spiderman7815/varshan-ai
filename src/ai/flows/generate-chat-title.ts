@@ -31,6 +31,7 @@ const prompt = ai.definePrompt({
   name: 'generateChatTitlePrompt',
   input: {schema: GenerateChatTitleInputSchema},
   output: {schema: GenerateChatTitleOutputSchema},
+  model: 'googleai/gemini-2.5-flash',
   prompt: `You are an AI that generates concise titles for chat conversations.
 
   Generate a title that accurately reflects the main topics discussed in the following conversation.

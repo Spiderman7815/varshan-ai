@@ -31,6 +31,7 @@ const prompt = ai.definePrompt({
   name: 'summarizeChatHistoryPrompt',
   input: {schema: SummarizeChatHistoryInputSchema},
   output: {schema: SummarizeChatHistoryOutputSchema},
+  model: 'googleai/gemini-2.5-flash',
   prompt: `You are an AI that summarizes chat histories.
 
   Generate a summary that accurately reflects the main topics discussed in the following chat history.
