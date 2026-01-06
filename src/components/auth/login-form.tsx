@@ -1,15 +1,12 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
   signInWithEmailAndPassword,
-  GoogleAuthProvider,
-  signInWithRedirect,
-  getRedirectResult,
   User as FirebaseUser
 } from "firebase/auth";
 import { useFirebase } from "@/firebase";
@@ -36,8 +33,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, Lock } from "lucide-react";
-import { GoogleIcon } from "../icons/google";
-import { Separator } from "../ui/separator";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email." }),
@@ -51,7 +46,6 @@ export function LoginForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -60,28 +54,6 @@ export function LoginForm() {
       password: "",
     },
   });
-
-  useEffect(() => {
-    const handleRedirectResult = async () => {
-      setGoogleLoading(true);
-      try {
-        const result = await getRedirectResult(auth);
-        if (result && result.user) {
-          await handleUserDocument(result.user);
-          router.push("/chat");
-        }
-      } catch (error: any) {
-        toast({
-          variant: "destructive",
-          title: "Google Sign-In Failed",
-          description: error.message,
-        });
-      } finally {
-        setGoogleLoading(false);
-      }
-    };
-    handleRedirectResult();
-  }, [auth, router, toast]);
 
   const handleUserDocument = async (user: FirebaseUser, displayName?: string | null) => {
     const userRef = doc(firestore, "users", user.uid);
@@ -125,13 +97,6 @@ export function LoginForm() {
       setLoading(false);
     }
   }
-
-  async function handleGoogleSignIn() {
-    setGoogleLoading(true);
-    const provider = new GoogleAuthProvider();
-    await signInWithRedirect(auth, provider);
-  }
-
 
   return (
     <Card className="w-full">
@@ -182,29 +147,12 @@ export function LoginForm() {
                 <Link href="/forgot-password">Forgot password?</Link>
               </Button>
             </div>
-            <Button type="submit" className="w-full" disabled={loading || googleLoading}>
+            <Button type="submit" className="w-full" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Sign In
             </Button>
           </form>
         </Form>
-        <div className="relative my-6">
-          <Separator />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 px-2 bg-card text-sm text-muted-foreground">OR</div>
-        </div>
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={handleGoogleSignIn}
-          disabled={loading || googleLoading}
-        >
-          {googleLoading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <GoogleIcon className="mr-2 h-5 w-5" />
-          )}
-          Sign in with Google
-        </Button>
       </CardContent>
       <CardFooter className="justify-center">
         <p className="text-sm text-muted-foreground">
